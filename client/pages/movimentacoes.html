@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Movimentação — Estoque</title>
+  <link rel="stylesheet" href="../css/main.css">
+</head>
+<body>
+  <nav>
+    <span class="logo">📦 Estoque</span>
+    <a href="../index.html">Dashboard</a>
+    <a href="produtos.html">Produtos</a>
+    <a href="movimentacoes.html" class="ativo">Movimentação</a>
+    <a href="alertas.html">Alertas</a>
+    <button class="btn btn-secundario" id="btn-sair" style="font-size:12px;padding:4px 10px;margin-left:auto">Sair</button>
+  </nav>
+
+  <div class="container page">
+    <div class="grid-2" style="align-items:start">
+      <div>
+        <h2 class="titulo-pagina">Registrar movimentação</h2>
+        <div class="card">
+          <div class="campo">
+            <label>Produto *</label>
+            <select id="f-produto"><option value="">Selecione um produto...</option></select>
+          </div>
+          <div id="estoque-info" style="display:none;background:#f9fafb;border-radius:7px;padding:10px;margin-bottom:1rem;font-size:13px">
+            Estoque atual: <strong id="estoque-valor"></strong>
+          </div>
+          <div class="campo">
+            <label>Tipo *</label>
+            <select id="f-tipo">
+              <option value="entrada">📥 Entrada (compra / recebimento)</option>
+              <option value="saida">📤 Saída (venda / consumo)</option>
+            </select>
+          </div>
+          <div class="campo">
+            <label>Quantidade *</label>
+            <input id="f-qtd" type="number" min="0.01" step="0.01" placeholder="0">
+          </div>
+          <div class="campo">
+            <label>Observação</label>
+            <input id="f-obs" placeholder="Ex: Compra fornecedor X, Venda balcão...">
+          </div>
+          <div id="msg-erro" class="erro" style="display:none"></div>
+          <div id="msg-ok" class="sucesso" style="display:none"></div>
+          <button class="btn btn-primario" id="btn-registrar" style="width:100%;justify-content:center">
+            Registrar movimentação
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <h2 class="titulo-pagina">Histórico recente</h2>
+        <div class="card" style="padding:0;overflow:hidden">
+          <table>
+            <thead>
+              <tr>
+                <th>Produto</th>
+                <th>Tipo</th>
+                <th>Qtd</th>
+                <th>Data</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-hist"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import '../js/api.js';
+    exigirLogin();
+    document.getElementById('btn-sair').addEventListener('click', logout);
+
+    async function carregarProdutos() {
+      const produtos = await api.produtos.listar();
+      const sel = document.getElementById('f-produto');
+      sel.innerHTML = '<option value="">Selecione um produto...</option>' +
+        produtos.map(p =>
+          `<option value="${p.id}" data-estoque="${p.estoque_atual}" data-unidade="${p.unidade}">${p.nome}</option>`
+        ).join('');
+    }
+
+    document.getElementById('f-produto').addEventListener('change', function() {
+      const opt = this.options[this.selectedIndex];
+      const info = document.getElementById('estoque-info');
+      if (this.value) {
+        document.getElementById('estoque-valor').textContent =
+          opt.dataset.estoque + ' ' + opt.dataset.unidade;
+        info.style.display = 'block';
+      } else {
+        info.style.display = 'none';
+      }
+    });
+
+    async function carregarHistorico() {
+      const movs = await api.movimentacoes.listar();
+      const tbody = document.getElementById('tbody-hist');
+      if (!movs.length) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:1.5rem;color:#9ca3af">Sem movimentações</td></tr>';
+        return;
+      }
+      tbody.innerHTML = movs.map(m => {
+        const data = new Date(m.criado_em).toLocaleString('pt-BR');
+        const cor = m.tipo === 'entrada' ? '#16a34a' : '#dc2626';
+        const sinal = m.tipo === 'entrada' ? '+' : '-';
+        return `<tr>
+          <td>${m.produto_nome}</td>
+          <td style="color:${cor};font-weight:500">${m.tipo === 'entrada' ? '📥 Entrada' : '📤 Saída'}</td>
+          <td style="color:${cor}">${sinal}${m.quantidade}</td>
+          <td style="color:#9ca3af">${data}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    document.getElementById('btn-registrar').addEventListener('click', async () => {
+      const produto_id = document.getElementById('f-produto').value;
+      const tipo = document.getElementById('f-tipo').value;
+      const quantidade = Number(document.getElementById('f-qtd').value);
+      const observacao = document.getElementById('f-obs').value;
+      const erroEl = document.getElementById('msg-erro');
+      const okEl = document.getElementById('msg-ok');
+
+      erroEl.style.display = 'none';
+      okEl.style.display = 'none';
+
+      if (!produto_id || !quantidade || quantidade <= 0) {
+        erroEl.textContent = 'Selecione o produto e informe uma quantidade válida';
+        erroEl.style.display = 'block';
+        return;
+      }
+
+      try {
+        await api.movimentacoes.criar({ produto_id, tipo, quantidade, observacao });
+        okEl.textContent = 'Movimentação registrada com sucesso!';
+        okEl.style.display = 'block';
+        document.getElementById('f-qtd').value = '';
+        document.getElementById('f-obs').value = '';
+        await carregarProdutos();
+        carregarHistorico();
+      } catch(err) {
+        erroEl.textContent = err.message;
+        erroEl.style.display = 'block';
+      }
+    });
+
+    carregarProdutos();
+    carregarHistorico();
+  </script>
+</body>
+</html>

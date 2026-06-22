@@ -4,9 +4,20 @@ info:
   seq: 1
 
 http:
-  method: GET
-  url: ""
-  auth: inherit
+  method: POST
+  url: http://localhost:3000/api/movimentacoes
+  body:
+    type: json
+    data: |-
+      {
+        "produto_id": 1,
+        "tipo": "entrada",
+        "quantidade": 10,
+        "observacao": "Compra inicial"
+      }
+  auth:
+    type: bearer
+    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwibm9tZSI6IkFkbWluaXN0cmFkb3IiLCJlbWFpbCI6ImFkbWluQGVzdG9xdWUuY29tIiwiaWF0IjoxNzgxOTc4NjEyLCJleHAiOjE3ODIwMDc0MTJ9.pTswy1hiojvEJqX-RingtkzFZgoH-afhtAaN55l7ens
 
 settings:
   encodeUrl: true

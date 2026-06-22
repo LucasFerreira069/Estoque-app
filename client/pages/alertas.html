@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alertas — Estoque</title>
+  <link rel="stylesheet" href="../css/main.css">
+</head>
+<body>
+  <nav>
+    <span class="logo">📦 Estoque</span>
+    <a href="../index.html">Dashboard</a>
+    <a href="produtos.html">Produtos</a>
+    <a href="movimentacoes.html">Movimentação</a>
+    <a href="alertas.html" class="ativo">Alertas</a>
+    <button class="btn btn-secundario" id="btn-sair" style="font-size:12px;padding:4px 10px;margin-left:auto">Sair</button>
+  </nav>
+
+  <div class="container page">
+    <h2 class="titulo-pagina">Alertas de estoque</h2>
+    <div id="conteudo">
+      <p style="color:#9ca3af">Carregando...</p>
+    </div>
+  </div>
+
+  <script type="module">
+    import '../js/api.js';
+    exigirLogin();
+    document.getElementById('btn-sair').addEventListener('click', logout);
+
+    async function carregar() {
+      const alertas = await api.produtos.listar({ alerta: 1 });
+      const div = document.getElementById('conteudo');
+
+      if (!alertas.length) {
+        div.innerHTML = `
+          <div class="card" style="text-align:center;padding:3rem">
+            <div style="font-size:48px;margin-bottom:1rem">✅</div>
+            <strong style="font-size:16px">Tudo certo!</strong>
+            <p style="color:#6b7280;margin-top:6px">Nenhum produto está abaixo do estoque mínimo.</p>
+          </div>`;
+        return;
+      }
+
+      div.innerHTML = `
+        <div class="alerta-banner" style="margin-bottom:1rem">
+          ⚠️ ${alertas.length} produto(s) precisam de atenção
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <table>
+            <thead>
+              <tr>
+                <th>Produto</th>
+                <th>Categoria</th>
+                <th>Estoque atual</th>
+                <th>Mínimo</th>
+                <th>Déficit</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${alertas.map(p => {
+                const deficit = p.estoque_minimo - p.estoque_atual;
+                const badge = p.estoque_atual === 0
+                  ? '<span class="badge badge-critico">Zerado</span>'
+                  : '<span class="badge badge-alerta">Baixo</span>';
+                return `<tr>
+                  <td><strong>${p.nome}</strong></td>
+                  <td>${p.categoria_nome || '—'}</td>
+                  <td style="color:#dc2626;font-weight:500">${p.estoque_atual} ${p.unidade}</td>
+                  <td>${p.estoque_minimo} ${p.unidade}</td>
+                  <td style="color:#dc2626">-${deficit.toFixed(1)} ${p.unidade}</td>
+                  <td>${badge}</td>
+                  <td><a href="movimentacao.html" class="btn btn-sucesso" style="font-size:12px;padding:4px 10px">Registrar entrada</a></td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    carregar();
+  </script>
+</body>
+</html>

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Estoque</title>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+  <nav>
+    <span class="logo">📦 Estoque</span>
+    <a href="index.html" class="ativo">Dashboard</a>
+    <a href="pages/produtos.html">Produtos</a>
+    <a href="pages/movimentacoes.html">Movimentação</a>
+    <a href="pages/alertas.html">Alertas</a>
+    <span class="usuario" id="nome-usuario"></span>
+    <button class="btn btn-secundario" id="btn-sair" style="font-size:12px;padding:4px 10px">Sair</button>
+  </nav>
+
+  <div class="container page">
+    <div id="banner-alertas" style="display:none"></div>
+
+    <h2 class="titulo-pagina">Dashboard</h2>
+
+    <div class="grid-3" style="margin-bottom:1.5rem">
+      <div class="metric">
+        <div class="label">Total de produtos</div>
+        <div class="valor" id="total-produtos">—</div>
+      </div>
+      <div class="metric">
+        <div class="label">Em estoque normal</div>
+        <div class="valor" id="produtos-ok" style="color:#16a34a">—</div>
+      </div>
+      <div class="metric">
+        <div class="label">Abaixo do mínimo</div>
+        <div class="valor" id="produtos-alerta" style="color:#dc2626">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+        <strong style="font-size:14px">Produtos com estoque crítico</strong>
+        <a href="pages/alertas.html" style="font-size:12px">Ver todos →</a>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Produto</th>
+            <th>Categoria</th>
+            <th>Estoque atual</th>
+            <th>Mínimo</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="tabela-alertas">
+          <tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:2rem">Carregando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script type="module">
+    import './js/api.js';
+    exigirLogin();
+
+    const usuario = getUsuario();
+    document.getElementById('nome-usuario').textContent = usuario?.nome || '';
+    document.getElementById('btn-sair').addEventListener('click', logout);
+
+    async function carregarDashboard() {
+      const [todos, alertas] = await Promise.all([
+        api.produtos.listar(),
+        api.produtos.listar({ alerta: 1 })
+      ]);
+
+      document.getElementById('total-produtos').textContent = todos.length;
+      document.getElementById('produtos-alerta').textContent = alertas.length;
+      document.getElementById('produtos-ok').textContent = todos.length - alertas.length;
+
+      if (alertas.length > 0) {
+        const banner = document.getElementById('banner-alertas');
+        banner.innerHTML = '⚠️ ' + alertas.length + ' produto(s) abaixo do estoque mínimo. <a href="pages/alertas.html">Ver agora →</a>';
+        banner.className = 'alerta-banner';
+        banner.style.display = 'flex';
+      }
+
+      const tbody = document.getElementById('tabela-alertas');
+      if (alertas.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#16a34a;padding:2rem">✓ Todos os produtos estão com estoque adequado</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = alertas.map(p => {
+        const status = p.estoque_atual === 0
+          ? '<span class="badge badge-critico">Zerado</span>'
+          : '<span class="badge badge-alerta">Baixo</span>';
+        return `<tr>
+          <td>${p.nome}</td>
+          <td>${p.categoria_nome || '—'}</td>
+          <td>${p.estoque_atual} ${p.unidade}</td>
+          <td>${p.estoque_minimo} ${p.unidade}</td>
+          <td>${status}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    carregarDashboard();
+  </script>
+</body>
+</html>

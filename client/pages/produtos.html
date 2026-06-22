@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Produtos — Estoque</title>
+  <link rel="stylesheet" href="../css/main.css">
+</head>
+<body>
+  <nav>
+    <span class="logo">📦 Estoque</span>
+    <a href="../index.html">Dashboard</a>
+    <a href="produtos.html" class="ativo">Produtos</a>
+    <a href="movimentacoes.html">Movimentação</a>
+    <a href="alertas.html">Alertas</a>
+    <button class="btn btn-secundario" id="btn-sair" style="font-size:12px;padding:4px 10px;margin-left:auto">Sair</button>
+  </nav>
+
+  <div class="container page">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
+      <h2 class="titulo-pagina" style="margin:0">Produtos</h2>
+      <button class="btn btn-primario" id="btn-novo">+ Novo produto</button>
+    </div>
+
+    <div class="toolbar">
+      <input type="text" id="busca" placeholder="Buscar produto...">
+      <select id="filtro-cat"><option value="">Todas as categorias</option></select>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden">
+      <table>
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>Categoria</th>
+            <th>Unidade</th>
+            <th>Preço venda</th>
+            <th>Estoque atual</th>
+            <th>Mínimo</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:center;justify-content:center">
+    <div class="card" style="width:100%;max-width:460px;max-height:90vh;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <strong id="modal-titulo">Novo produto</strong>
+        <button onclick="fecharModal()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#9ca3af">✕</button>
+      </div>
+      <div class="campo"><label>Nome *</label><input id="f-nome"></div>
+      <div class="campo"><label>Categoria</label>
+        <select id="f-cat"><option value="">Sem categoria</option></select>
+      </div>
+      <div class="grid-2">
+        <div class="campo"><label>Unidade</label>
+          <select id="f-unidade">
+            <option>un</option>
+            <option>kg</option>
+            <option>L</option>
+            <option>cx</option>
+            <option>pç</option>
+          </select>
+        </div>
+        <div class="campo"><label>Estoque mínimo</label><input id="f-minimo" type="number" min="0" value="0"></div>
+      </div>
+      <div class="grid-2">
+        <div class="campo"><label>Preço custo (R$)</label><input id="f-custo" type="number" min="0" step="0.01" value="0"></div>
+        <div class="campo"><label>Preço venda (R$)</label><input id="f-venda" type="number" min="0" step="0.01" value="0"></div>
+      </div>
+      <div id="modal-erro" class="erro" style="display:none"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:.5rem">
+        <button class="btn btn-secundario" onclick="fecharModal()">Cancelar</button>
+        <button class="btn btn-primario" id="btn-salvar">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import '../js/api.js';
+    exigirLogin();
+    document.getElementById('btn-sair').addEventListener('click', logout);
+
+    let editandoId = null;
+
+    async function carregar() {
+      const busca = document.getElementById('busca').value;
+      const categoria = document.getElementById('filtro-cat').value;
+      const produtos = await api.produtos.listar({ busca, categoria });
+      const tbody = document.getElementById('tbody');
+
+      if (!produtos.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:#9ca3af">Nenhum produto encontrado</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = produtos.map(p => {
+        const alerta = p.estoque_atual <= p.estoque_minimo;
+        const badge = p.estoque_atual === 0
+          ? '<span class="badge badge-critico">Zerado</span>'
+          : alerta ? '<span class="badge badge-alerta">Baixo</span>'
+          : '<span class="badge badge-ok">OK</span>';
+        return `<tr>
+          <td><strong>${p.nome}</strong></td>
+          <td>${p.categoria_nome || '—'}</td>
+          <td>${p.unidade}</td>
+          <td>R$ ${Number(p.preco_venda).toFixed(2)}</td>
+          <td>${p.estoque_atual}</td>
+          <td>${p.estoque_minimo}</td>
+          <td>${badge}</td>
+          <td style="display:flex;gap:6px">
+            <button class="btn btn-secundario" style="padding:4px 8px;font-size:12px" onclick="editar(${p.id})">Editar</button>
+            <button class="btn btn-perigo" style="padding:4px 8px;font-size:12px" onclick="excluir(${p.id}, '${p.nome}')">Excluir</button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    async function carregarCategorias() {
+      const categorias = await api.categorias.listar();
+      const opts = categorias.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+      document.getElementById('filtro-cat').innerHTML = '<option value="">Todas as categorias</option>' + opts;
+      document.getElementById('f-cat').innerHTML = '<option value="">Sem categoria</option>' + opts;
+    }
+
+    window.fecharModal = function() {
+      document.getElementById('modal').style.display = 'none';
+      editandoId = null;
+    };
+
+    window.editar = async function(id) {
+      const p = await api.produtos.buscar(id);
+      editandoId = id;
+      document.getElementById('modal-titulo').textContent = 'Editar produto';
+      document.getElementById('f-nome').value = p.nome;
+      document.getElementById('f-cat').value = p.categoria_id || '';
+      document.getElementById('f-unidade').value = p.unidade;
+      document.getElementById('f-minimo').value = p.estoque_minimo;
+      document.getElementById('f-custo').value = p.preco_custo;
+      document.getElementById('f-venda').value = p.preco_venda;
+      document.getElementById('modal').style.display = 'flex';
+    };
+
+    window.excluir = async function(id, nome) {
+      if (!confirm('Excluir "' + nome + '"?')) return;
+      await api.produtos.deletar(id);
+      carregar();
+    };
+
+    document.getElementById('btn-novo').addEventListener('click', () => {
+      editandoId = null;
+      document.getElementById('modal-titulo').textContent = 'Novo produto';
+      document.getElementById('f-nome').value = '';
+      document.getElementById('f-custo').value = 0;
+      document.getElementById('f-venda').value = 0;
+      document.getElementById('f-minimo').value = 0;
+      document.getElementById('modal').style.display = 'flex';
+    });
+
+    document.getElementById('btn-salvar').addEventListener('click', async () => {
+      const dados = {
+        nome: document.getElementById('f-nome').value.trim(),
+        categoria_id: document.getElementById('f-cat').value || null,
+        unidade: document.getElementById('f-unidade').value,
+        estoque_minimo: Number(document.getElementById('f-minimo').value),
+        preco_custo: Number(document.getElementById('f-custo').value),
+        preco_venda: Number(document.getElementById('f-venda').value)
+      };
+      const erroEl = document.getElementById('modal-erro');
+      if (!dados.nome) {
+        erroEl.textContent = 'Nome é obrigatório';
+        erroEl.style.display = 'block';
+        return;
+      }
+      erroEl.style.display = 'none';
+      try {
+        if (editandoId) await api.produtos.atualizar(editandoId, dados);
+        else await api.produtos.criar(dados);
+        fecharModal();
+        carregar();
+      } catch(err) {
+        erroEl.textContent = err.message;
+        erroEl.style.display = 'block';
+      }
+    });
+
+    let timer;
+    document.getElementById('busca').addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(carregar, 300);
+    });
+    document.getElementById('filtro-cat').addEventListener('change', carregar);
+
+    await carregarCategorias();
+    carregar();
+  </script>
+</body>
+</html>
